@@ -16,7 +16,10 @@ src/model.py         PatchTST (RevIN + channel attention as ablation switches)
 src/train.py         one run = (feature_set, fold, seed)
 src/metrics.py       PLAN.md section 13 metrics
 src/report.py        aggregation + PLAN.md section 23 acceptance criteria
+src/baselines.py     PLAN.md section 4a competing baselines (CPU only)
+src/report_baselines.py  baseline comparison + incremental value of PatchTST
 src/bench.py         GPU throughput benchmark
+STATUS.md            current state, what the numbers say, next steps
 ```
 
 Run order:
@@ -28,6 +31,8 @@ Run order:
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   .venv/bin/python src/train.py --feature-set F2 --loss huber --folds 1,2,3,4,5 --seeds 0
 .venv/bin/python src/report.py --tag stage1
+.venv/bin/python src/baselines.py --folds 1,2,3,4,5 --tag baselines
+.venv/bin/python src/report_baselines.py
 ```
 
 ## Decisions the plan left open
