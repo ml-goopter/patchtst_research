@@ -22,6 +22,7 @@ src/bench.py         GPU throughput benchmark
 Run order:
 
 ```bash
+.venv/bin/pip install -r requirements.txt
 .venv/bin/python src/download.py
 .venv/bin/python src/features.py
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \

@@ -1,0 +1,22 @@
+# Direct dependencies only; transitive ones resolve from these.
+# Versions are the ones stage one was produced with.
+#
+#   python -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#
+# torch is pinned without a CUDA local version so it installs on any host. The
+# default PyPI wheel bundles CUDA 12.4. For a different CUDA runtime, or for a
+# CPU-only box, install torch first from the matching index and then run the
+# command above, which will leave it in place:
+#
+#   .venv/bin/pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#   .venv/bin/pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+
+torch==2.6.0
+
+numpy==2.5.1
+pandas==3.0.5
+pyarrow==25.0.0          # parquet engine for the panel and prediction files
+scipy==1.18.0            # correlations and regressions in src/metrics.py
+scikit-learn==1.9.0      # gradient boosting baselines in src/baselines.py
+requests==2.34.2         # Binance klines download
