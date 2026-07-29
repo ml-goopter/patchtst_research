@@ -1,0 +1,51 @@
+============================================================================================
+BASELINE COMPARISON - expected 4h log return, test splits only (PLAN.md section 4a)
+============================================================================================
+
+pooled over all 5 test windows
+         model        n   pearson  spearman     R2vs0    dir%  decile_sp  top10_net   calib
+      patchtst   109240   +0.0596   +0.0773  +0.00202   52.27      38.4b      10.8b   0.602
+      gbm_lags   109240   +0.0605   +0.0673  +0.00099   52.58      26.3b       8.5b   0.542
+      gbm_last   109240   +0.0674   +0.0639  +0.00249   52.33      24.9b       9.0b   0.601
+  momentum_ols   109240   +0.0120   +0.0334  +0.00007   51.06       1.8b      -4.0b   0.584
+  momentum_raw   109240   -0.0140   -0.0362  -0.98705   48.03      -3.5b      -5.9b  -0.014
+    ridge_lags   109240   +0.0413   +0.0405  +0.00097   51.04      23.5b       0.7b   0.602
+    ridge_last   109240   +0.0345   +0.0343  +0.00119   50.81      11.9b      -1.5b   0.879
+
+test pearson by fold
+         model     fold1     fold2     fold3     fold4     fold5      mean
+      patchtst   +0.0419   +0.0396   +0.0269   +0.1016   +0.0807   +0.0581
+      gbm_lags   +0.1005   +0.0285   +0.0754   +0.0558   +0.0549   +0.0630
+      gbm_last   +0.0836   +0.0487   +0.0799   +0.0542   +0.0787   +0.0690
+  momentum_ols   +0.0507   +0.0176   +0.0078   +0.0230   -0.0137   +0.0171
+  momentum_raw   -0.0507   -0.0176   -0.0078   -0.0230   +0.0137   -0.0171
+    ridge_lags   +0.0534   -0.0200   +0.0387   +0.0626   +0.0707   +0.0411
+    ridge_last   +0.0532   -0.0056   +0.0178   +0.0665   +0.0336   +0.0331
+
+top-decile mean realized return net of cost, by fold (bps)
+         model     fold1     fold2     fold3     fold4     fold5      mean
+      patchtst      +5.6      -2.7      +4.8     +41.1      -4.8      +8.8
+      gbm_lags     +35.2     -17.9      +5.7     +26.8      +3.7     +10.7
+      gbm_last     +32.9      -9.0      +2.3     +19.2      +8.1     +10.7
+  momentum_ols     +19.9     -14.5      -7.2     +22.2     -19.0      +0.3
+  momentum_raw      -8.3     -13.6     -10.0      +6.8      -4.3      -5.9
+    ridge_lags     +16.3     -21.8      -0.4     +33.9     +14.2      +8.4
+    ridge_last     +22.4     -28.2      +1.7     +29.7     -16.1      +1.9
+
+--------------------------------------------------------------------------------------------
+incremental value of PatchTST over each baseline
+--------------------------------------------------------------------------------------------
+aligned on (symbol, timestamp); 'corr' is between the two prediction series,
+'resid_pearson' is PatchTST vs the part of the actual return the baseline missed.
+
+      baseline  n_common     corr  resid_pearson  combo_pearson
+      gbm_lags    109240   +0.373        +0.0371        +0.0724
+      gbm_last    109240   +0.278        +0.0410        +0.0794
+  momentum_ols    109240   +0.202        +0.0572        +0.0461
+  momentum_raw    109240   -0.208        +0.0567        +0.0362
+    ridge_lags    109240   +0.281        +0.0480        +0.0630
+    ridge_last    109240   +0.239        +0.0513        +0.0598
+
+n patchtst = 109,240 (seed-averaged over 5 seeds); baselines are deterministic.
+Nominal significance is inflated ~4x by overlapping 4h targets and cross-asset
+correlation, so treat small pearson gaps between models as noise.
