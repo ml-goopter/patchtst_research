@@ -9,6 +9,14 @@ data/
 # model weights: large and reproducible from the run configs
 runs/**/model.pt
 
+# per-run prediction dumps. The stage-two sweeps carry a full quantile grid and
+# five task outputs per row, which is 8.8 MB per run against stage one's 0.6 MB
+# -- 440 MB in total, on a repo that is otherwise ~35 MB. Every published number
+# is reproducible from the committed result.json files and reports/; only
+# re-scoring without re-training needs these back, which is ~10 min/run.
+# stage1/ and baselines/ predate this rule and stay tracked.
+runs/**/predictions.parquet
+
 # logs
 runs/*.log
 
