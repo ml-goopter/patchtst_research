@@ -31,6 +31,57 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+def shuffle_target(panel_df: pd.DataFrame, mode: str, seed: int,
+                   target: str = "y_return") -> pd.DataFrame:
+    """Break the feature->target link while keeping the pipeline identical.
+
+    PLAN.md section 4a asks for the target "randomly permuted within each symbol".
+    Two ways to do that, and they answer different questions:
+
+      iid    independent permutation per symbol. Destroys the target's own
+             autocorrelation and its cross-asset correlation along with the
+             signal, so the resulting null is NARROWER than the real one --
+             it understates how much correlation this pipeline can produce
+             by chance on 4h targets that overlap 4-to-1.
+
+      shift  shift the target back by one common time offset, applied to every
+             symbol. The target series keeps its autocorrelation exactly and the
+             panel keeps its cross-sectional correlation exactly; only the
+             alignment with the features is destroyed. This is the honest null
+             for overlapping, cross-correlated targets.
+
+    Rows are sorted by (symbol, timestamp) and each symbol sits on a strict
+    contiguous hourly grid, so a common row offset IS a common time offset and
+    the cross-asset correlation of the panel survives untouched. The shift fills
+    with NaN rather than wrapping: wrapping would land at a different calendar
+    time for symbols that list later, which is exactly what breaks the
+    cross-sectional structure the null is supposed to keep.
+    """
+    if mode == "none":
+        return panel_df
+    rng = np.random.default_rng(seed)
+    df = panel_df.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+    y = df[target].to_numpy(np.float64).copy()
+    groups = df.groupby("symbol", sort=True).indices
+
+    if mode == "shift":
+        # 30 to 180 days back. Far beyond any 4h autocorrelation, so the signal is
+        # gone, while costing at most 180 days of a 6.5-year panel to the NaN fill.
+        off = int(rng.integers(24 * 30, 24 * 180))
+        for ix in groups.values():
+            ix = np.sort(ix)
+            y[ix[off:]] = y[ix[:-off]]
+            y[ix[:off]] = np.nan
+    elif mode == "iid":
+        for ix in groups.values():
+            y[ix] = rng.permutation(y[ix])
+    else:
+        raise ValueError(mode)
+
+    df[target] = y.astype(np.float32)
+    return df
+
+
 def make_loss(name: str, delta: float):
     if name == "huber":
         return nn.HuberLoss(delta=delta)
@@ -164,10 +215,15 @@ def main() -> None:
     ap.add_argument("--patch", default=None, help="patch_len:stride")
     ap.add_argument("--revin", default=None, choices=["on", "off"])
     ap.add_argument("--channel-attention", action="store_true")
+    ap.add_argument("--shuffle-target", default="none", choices=["none", "iid", "shift"],
+                    help="destroy the feature->target link to measure the pipeline's null")
+    ap.add_argument("--shuffle-seeds", default="0",
+                    help="one draw of the null per value; paired with --seeds")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
     panel_df = pd.read_parquet(C.DATA_PROC / "panel.parquet")
+    # folds are defined by the timeline, which shuffling never touches
     folds = {f["fold"]: f for f in make_folds(panel_df)}
 
     m_over, t_over = {}, {}
@@ -187,18 +243,27 @@ def main() -> None:
         raise SystemExit("context_len ablation needs CONTEXT_LEN changed in config.py "
                          "(the window gather is sized from it)")
 
+    shuf_seeds = [int(x) for x in a.shuffle_seeds.split(",")] if a.shuffle_target != "none" else [None]
+
     rows = []
-    for fold_id in [int(x) for x in a.folds.split(",")]:
-        for seed in [int(x) for x in a.seeds.split(",")]:
-            print(f"\n=== {a.tag} | {a.feature_set} | {a.loss} | fold {fold_id} | seed {seed} ===",
-                  flush=True)
-            r = run_one(panel_df, folds[fold_id], seed, a.feature_set, a.loss,
-                        m_over, t_over, a.tag, verbose=not a.quiet)
-            t = r["test"]
-            print(f"  -> test  rmse {t['rmse']:.6f}  (zero {t['baseline_zero_rmse']:.6f})  "
-                  f"pearson {t['pearson']:+.4f}  spearman {t['spearman']:+.4f}  "
-                  f"dir {t['directional_accuracy']:.4f}  bias {t['prediction_bias']:+.2e}", flush=True)
-            rows.append(r)
+    for shuf in shuf_seeds:
+        df = panel_df if shuf is None else shuffle_target(panel_df, a.shuffle_target, shuf)
+        for fold_id in [int(x) for x in a.folds.split(",")]:
+            for seed in [int(x) for x in a.seeds.split(",")]:
+                label = "" if shuf is None else f" | shuffle {a.shuffle_target} draw {shuf}"
+                print(f"\n=== {a.tag} | {a.feature_set} | {a.loss} | fold {fold_id} | "
+                      f"seed {seed}{label} ===", flush=True)
+                tag = a.tag if shuf is None else f"{a.tag}/{a.shuffle_target}_draw{shuf}"
+                r = run_one(df, folds[fold_id], seed, a.feature_set, a.loss,
+                            m_over, t_over, tag, verbose=not a.quiet)
+                r["shuffle_target"] = a.shuffle_target
+                r["shuffle_seed"] = shuf
+                t = r["test"]
+                print(f"  -> test  rmse {t['rmse']:.6f}  (zero {t['baseline_zero_rmse']:.6f})  "
+                      f"pearson {t['pearson']:+.4f}  spearman {t['spearman']:+.4f}  "
+                      f"dir {t['directional_accuracy']:.4f}  bias {t['prediction_bias']:+.2e}",
+                      flush=True)
+                rows.append(r)
 
     summary = C.RUNS / a.tag / "summary.jsonl"
     summary.parent.mkdir(parents=True, exist_ok=True)

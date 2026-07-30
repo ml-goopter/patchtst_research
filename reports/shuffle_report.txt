@@ -1,0 +1,32 @@
+================================================================================================
+SHUFFLED-TARGET CONTROL - the null this pipeline produces on noise
+================================================================================================
+
+Identical pipeline, identical config, identical folds. Only the target is
+randomised. Every number below is on the fold's held-out test window.
+
+------------------------------------------------------------------------------------------------
+fold 5
+------------------------------------------------------------------------------------------------
+                      series    n      mean       sd       min       max  |>=real|
+        null pearson (shift)    4   +0.0200   0.0281   -0.0098   +0.0481       0/4
+      REAL pearson (5 seeds)    5   +0.0693   0.0063   +0.0601   +0.0768         -
+
+  shift: real is +1.76 null sd above the null mean. null sd 0.0281 implies n_eff ~ 1,269 vs 21,560 nominal rows (17x inflation)
+
+                               decile_sp     dir%      R2vs0  best_ep
+           null mean (shift)        7.0b    50.72   -0.00979      4.8
+                   REAL mean       52.5b    52.13   +0.00178      4.0
+
+------------------------------------------------------------------------------------------------
+every null draw
+------------------------------------------------------------------------------------------------
+   mode  draw  fold  seed   pearson  spearman   decile_sp  best_ep
+  shift     0     5     0   +0.0393   +0.0365       13.6b        4
+  shift     1     5     0   -0.0098   +0.0076       -9.5b        5
+  shift     2     5     0   +0.0481   +0.0406       27.1b        5
+  shift     3     5     0   +0.0022   +0.0060       -3.4b        5
+
+A null centred near zero with a wide spread does not mean the pipeline is broken.
+It means correlation on overlapping, cross-correlated targets is a noisy statistic,
+and single-fold results must clear that spread before they mean anything.
