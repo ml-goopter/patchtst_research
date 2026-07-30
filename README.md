@@ -18,6 +18,10 @@ src/metrics.py       PLAN.md section 13 metrics
 src/report.py        aggregation + PLAN.md section 23 acceptance criteria
 src/baselines.py     PLAN.md section 4a competing baselines (CPU only)
 src/report_baselines.py  baseline comparison + incremental value of PatchTST
+src/quantiles.py     PLAN.md sections 15-16 quantile + probability GBM (CPU only)
+src/report_quantiles.py  coverage, pinball, CRPS, Brier, calibration vs a static reference
+src/ensemble.py      blend weights fitted on validation, scored on test
+src/report_shuffle.py    the null this pipeline produces on a randomised target
 src/bench.py         GPU throughput benchmark
 STATUS.md            current state, what the numbers say, next steps
 ```
@@ -33,6 +37,20 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 .venv/bin/python src/report.py --tag stage1
 .venv/bin/python src/baselines.py --folds 1,2,3,4,5 --tag baselines
 .venv/bin/python src/report_baselines.py
+.venv/bin/python src/quantiles.py --folds 1,2,3,4,5 --tag quantiles
+.venv/bin/python src/report_quantiles.py
+.venv/bin/python src/ensemble.py
+```
+
+The shuffled-target control reuses the training entry point with the target
+randomised. `shift` keeps the target's autocorrelation and cross-asset
+correlation and destroys only its alignment with the features; `iid` destroys all
+three and therefore reports a narrower, optimistic null:
+
+```bash
+.venv/bin/python src/train.py --feature-set F2 --loss huber --folds 5 --seeds 0 \
+  --tag shuffle --shuffle-target shift --shuffle-seeds 0,1,2,3,4,5,6,7,8,9
+.venv/bin/python src/report_shuffle.py
 ```
 
 ## Decisions the plan left open

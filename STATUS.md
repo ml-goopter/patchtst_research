@@ -1,8 +1,11 @@
 # Status / handoff
 
-Last updated 2026-07-29. Read `PLAN.md` for the frozen plan, `README.md` for layout,
-hardware limits and leakage controls. This file is only: what is done, what the
-numbers actually say, and what to do next.
+Last updated 2026-07-29 (paused mid-run). Read `PLAN.md` for the frozen plan,
+`README.md` for layout, hardware limits and leakage controls. This file is only:
+what is done, what the numbers actually say, and what to do next.
+
+**Paused deliberately with the shuffled-target control 4 draws of 15 complete.**
+Resume command at the bottom of "Next steps". The GPU is free.
 
 ---
 
@@ -18,10 +21,17 @@ keep it that way until stage one's model choice is settled.
 | stage one, F2 + Huber, 5 folds x 5 seeds | done — 25 runs, `runs/stage1/` |
 | section 23 acceptance (original six) | **6/6 pass** — `reports/stage1_report.txt` |
 | section 4a competing baselines | done — `reports/baselines_report.txt` |
-| shuffled-target control | **NOT RUN** — blocking, see next steps |
+| shuffled-target control | **4 of 15 draws** — `reports/shuffle_report.txt`, preliminary and alarming |
+| ensemble check (was step 3) | done — `reports/ensemble_report.txt` |
+| quantile + probability GBM (was step 2) | done — `reports/quantiles_report.txt` |
 | stage two (sections 14–20) | not started |
 | section 21 ablations | not started |
 | holdout evaluation | not started, deliberately |
+
+`data/` is gitignored and was regenerated on 2026-07-29 from `src/download.py` +
+`src/features.py`. It reproduces exactly: 557,796 rows, leakage checks pass, and
+re-running fold 5 of the baselines returns every recorded digit (gbm_last +0.0787,
+ridge_lags +0.0707, ridge_last +0.0336).
 
 ---
 
@@ -58,6 +68,52 @@ part of the actual return the GBM misses, and a naive z-score sum of the two bea
 either alone. Current best reading: **PatchTST is an ensemble component, not a
 standalone forecaster.**
 
+That +0.0794 was fitted and scored on the same test rows. **It survives an honest
+protocol** — `src/ensemble.py`, every weight from the fold's validation window,
+applied to test (`reports/ensemble_report.txt`):
+
+| blend | fold1 | fold2 | fold3 | fold4 | fold5 | mean | pooled | top10 net |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| patchtst | +.0419 | +.0396 | +.0269 | +.1016 | +.0807 | +.0581 | +0.0596 | 10.8b |
+| gbm_last | +.0836 | +.0487 | +.0799 | +.0542 | +.0787 | +.0690 | +0.0674 | 9.0b |
+| **zsum:gbm_last** | +.0816 | +.0548 | +.0666 | +.0937 | +.0996 | **+.0793** | **+0.0808** | **14.8b** |
+
+Never the worst in any fold, and far more stable than PatchTST alone (range
+.055–.100 vs .027–.102). Adding PatchTST to a stack of all five baselines lifts it
+from +0.0510 to +0.0692.
+
+**Equal weights beat fitted weights.** Every validation-fitted OLS blend does worse
+than the naive z-score sum (`ols:gbm_last` +0.0611 vs `zsum` +0.0808) — fold 4 fits
+a *negative* PatchTST weight that then hurts on test. Do not "optimize" this blend.
+
+## The distributional targets are already met — by a tree
+
+`src/quantiles.py`, 7 min of CPU, GBM on the F2 features at time t only, same folds
+and purging (`reports/quantiles_report.txt`). "static" predicts the training
+window's unconditional quantiles for every row — the distributional zero predictor:
+
+| | p10cov | p50cov | p90cov | c80cov | CRPS | mean width |
+| --- | --- | --- | --- | --- | --- | --- |
+| gbm_quantile | 0.1080 | 0.4972 | 0.8938 | 0.7859 | **0.008532** | **356 bps** |
+| static | 0.0826 | 0.5005 | 0.9194 | 0.8368 | 0.008852 | 414 bps |
+| PLAN target | 0.10 | 0.50 | 0.90 | 0.80 | | |
+
+Better calibrated *and* 58 bps narrower, and it wins every pinball loss. **This
+clears all six of PLAN.md section 23's return-distribution criteria.** Section 14's
+Student-t PatchTST head has to beat this, not the static reference.
+
+The probability head is the weak part: Brier 0.24715 vs static 0.24859, log loss
+0.68744 vs 0.69033. Real but tiny. Only 136 of 109,240 rows ever predict above 0.65
+and none above 0.80, so PLAN section 22's "probability above cost >= 0.60" trading
+rule would fire on ~1% of rows.
+
+**History adds nothing here either.** The same fit over 10 log-spaced lags
+(`--offsets lags`, 350 features, ~9x the runtime, `reports/quantiles_lags_report.txt`)
+scores CRPS 0.008539 vs 0.008532 and Brier 0.24718 vs 0.24715 — indistinguishable,
+marginally worse. This mirrors gbm_last ≥ gbm_lags on the mean task. Two independent
+model families now say the 4h-ahead information is in the most recent candle, which
+is the strongest argument yet against spending capacity on a 256-candle context.
+
 ### Things that are easy to get wrong when reporting this
 
 - **Ranking skill, not magnitude skill.** R² vs zero is +0.002 only *after*
@@ -67,9 +123,11 @@ standalone forecaster.**
   (+0.0348, +0.0297, +0.0225, +0.0884, +0.0693) vs pearson-of-seed-averaged-series
   (+0.0419, +0.0396, +0.0269, +0.1016, +0.0807). Both correct, different questions.
   `reports/baselines_report.txt` uses the second; `reports/stage1_report.txt` the first.
-- **Nominal t-stats are inflated ~4x.** Overlapping 4h targets (~4x) and cross-asset
-  correlation (~3–4x) mean 109,240 rows are nowhere near 109,240 independent samples.
-  Treat pearson gaps under ~0.02 between models as noise.
+- **Nominal t-stats are inflated ~4x** — and the partial shuffled control says
+  **~17x**, which would make the honest noise threshold ~0.06 rather than ~0.02.
+  Overlapping 4h targets and cross-asset correlation mean 109,240 rows are nowhere
+  near 109,240 independent samples. Until the control finishes, treat pearson gaps
+  under ~0.02 as noise and know that number is probably far too generous.
 - **Fold 4 carries the economics.** Top-decile net of the 11 bps cost, by fold:
   +5.6, −2.7, +4.8, **+41.1**, −4.8 bps. Three of five folds clear cost.
 - **Not just "crypto goes up".** In folds 1 and 5 mean prediction has the opposite
@@ -77,38 +135,94 @@ standalone forecaster.**
 
 ---
 
+## The shuffled-target control — partial, and it dominates everything else
+
+`src/train.py --shuffle-target {shift,iid}` refits the pipeline unchanged on a
+target whose link to the features has been destroyed. Fold 5, seed 0, 4 draws of a
+planned 15. **Do not plan stage two around the stage-one numbers until this is
+finished.**
+
+| series | n | mean | sd | min | max |
+| --- | --- | --- | --- | --- | --- |
+| null pearson (shift) | 4 | **+0.0200** | 0.0281 | −0.0098 | +0.0481 |
+| REAL pearson (5 seeds) | 5 | +0.0693 | 0.0063 | +0.0601 | +0.0768 |
+
+Real fold 5 is only **+1.76 null sd** above the null mean. The null sd implies
+n_eff ≈ 1,269 against 21,560 nominal test rows — a **17x** inflation of nominal
+significance, well beyond the ~4x assumed below. If this holds at 15 draws, the
+"gaps under 0.02 are noise" rule becomes more like 0.06, and every model in the
+section 4a table collapses into one indistinguishable group.
+
+Two caveats before anyone acts on it: 4 draws puts ±50% error on that sd, and this
+is one fold. Fold 4 (+0.0884) has more headroom than fold 5.
+
+**The ranking metrics separate far better than pearson does**, which is the more
+useful reading so far:
+
+| | pearson | decile spread | R² vs zero | dir % |
+| --- | --- | --- | --- | --- |
+| null mean (4 draws) | +0.0200 | 7.0 bps | −0.00979 | 50.72 |
+| real mean (5 seeds) | +0.0693 | 52.5 bps | +0.00178 | 52.13 |
+
+Decile spread is 7.5x apart and R² vs zero has the right sign in every real run and
+the wrong sign in every null draw. Pearson may simply be the wrong statistic for
+overlapping cross-correlated targets.
+
+### Two nulls, and why both
+
+`shift` moves the target back by one common time offset: autocorrelation (lag-1
+0.7358 vs 0.7360) and cross-asset correlation (0.638 vs 0.643) survive exactly,
+only feature alignment dies. `iid` — the permutation PLAN.md section 4a literally
+specifies — destroys all three at once, driving lag-1 to −0.004 and cross-asset to
+0.000, which makes every row look independent and reports a **falsely tight null**.
+Report `shift`; report `iid` beside it to show the gap. The `iid` draws have not
+run yet.
+
+---
+
 ## Next steps, in order
 
-Do **not** start stage two compute before 1 and 2.
+**1. Finish the shuffled-target control — ~2 h GPU. Still blocking.**
+6 shift draws and 5 iid draws remain. Runs are ~10 min each on the 3090.
 
-**1. Shuffled-target control — ~40 min, one fold, GPU. Blocking.**
-Refit one fold with `y_return` randomly permuted within each symbol. Establishes the
-null distribution this pipeline produces on noise. If shuffled targets yield pearson
-±0.03 on 109k overlapping samples, a chunk of the +0.06 is artifact and everything
-above needs re-reading. Cheapest check with the highest chance of invalidating the
-result. Now a section 23 criterion.
+```bash
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True .venv/bin/python src/train.py \
+  --feature-set F2 --loss huber --folds 5 --seeds 0 --tag shuffle \
+  --shuffle-target shift --shuffle-seeds 4,5,6,7,8,9 --quiet
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True .venv/bin/python src/train.py \
+  --feature-set F2 --loss huber --folds 5 --seeds 0 --tag shuffle \
+  --shuffle-target iid --shuffle-seeds 0,1,2,3,4 --quiet
+.venv/bin/python src/report_shuffle.py
+```
 
-**2. Quantile GBM — under an hour, CPU.**
-`HistGradientBoostingRegressor(loss="quantile")` at 0.1/0.5/0.9 plus a classifier for
-P(return > cost), same folds. Delivers all of sections 15 and 16 immediately, and
-tells you what a Student-t PatchTST head has to beat before spending 33 GPU-hours on
-one. Extend `src/baselines.py`.
+`report_shuffle.py` reads per-run `result.json`, not the batch summary, so an
+interrupted batch still reports every draw that finished. Safe to stop between
+draws; a kill costs only the in-flight run.
 
-**3. Ensemble check — free, no training.**
-The +0.0794 combo is a naive z-score sum on existing predictions. Fit the blend
-weight on validation, score on test. If it holds, PatchTST's role is settled and it
-changes what stage two is for.
+If the null holds near +0.02 ± 0.03, the next move is **not** stage two. It is to
+re-run the section 4a comparison with the null subtracted and decide whether any
+model in it is distinguishable from noise on pearson — and if not, to re-centre the
+whole evaluation on decile spread and R² vs zero, which do separate.
 
-**Then** stage two, 50-run / ~33 h path (section 14 Student-t 5x5, then section 20
-multi-task 5x5). Per-run cost is unchanged from stage one — the head goes from 1 to
-3–5 outputs, under 0.5% of FLOPs — so budget ~40 min/run including NLL needing a
-couple more epochs. Known risk: the Student-t `df` parameter diverging on fat-tailed
-4h crypto returns; plan on softplus floors and df clamping.
+**2. Then** stage two, 50 runs. On this 3090 that is **~8–9 h**, not the 33 h below:
+fold 5 measures 10.3 min/run vs 41.8 min on the 1070, a 4.1x speedup. Section 14
+Student-t 5x5, then section 20 multi-task 5x5. Per-run cost is unchanged from stage
+one — the head goes from 1 to 3–5 outputs, under 0.5% of FLOPs. Known risk: the
+Student-t `df` parameter diverging on fat-tailed 4h crypto returns; plan on softplus
+floors and df clamping. **Whatever it produces must beat the quantile GBM below,
+which cost 7 minutes of CPU.**
 
-**Deferred:** section 21 ablations. `head="mean"` is the interesting one — 31x fewer
-head params (4,480 → 1 instead of 138,880 → 1, currently 19% of the model). Given
-PatchTST barely beats a single-candle GBM, the flatten head over 256 candles looks
-like capacity in the wrong place. ~3 h as a 5-fold single-seed probe.
+Worth benchmarking first: `TRAIN["amp"]=False` and `batch_size=128` were tuned for
+the 1070's 6.5 GB and its 1/64-rate FP16. Ampere reverses both, and only 4.9 GB of
+24 GB is in use. Do not change them until the shuffle control is done — the null is
+only valid on the identical config.
+
+**Promoted from deferred:** section 21 ablations, specifically `head="mean"` — 31x
+fewer head params (4,480 → 1 instead of 138,880 → 1, currently 19% of the model).
+Now ~45 min as a 5-fold single-seed probe on the 3090, not 3 h. Two independent
+model families (GBM mean, GBM quantile) find no value in history beyond the last
+candle, so a flatten head over 256 candles is very likely capacity in the wrong
+place. Cheap, and it may explain the whole result.
 
 ---
 
@@ -124,6 +238,19 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 .venv/bin/python src/baselines.py --folds 1,2,3,4,5 --tag baselines
 .venv/bin/python src/report_baselines.py
 
+# quantile + probability GBM (~1.4 min/fold, CPU only); --offsets lags is ~9x slower
+.venv/bin/python src/quantiles.py --folds 1,2,3,4,5 --tag quantiles
+.venv/bin/python src/report_quantiles.py
+
+# ensemble: validation-fitted blends scored on test (no training, no GPU, seconds)
+.venv/bin/python src/ensemble.py
+
+# shuffled-target null (see "Next steps" for the resume command)
+.venv/bin/python src/report_shuffle.py
+
+# rebuild data/ from scratch (~3 min; data/ is gitignored)
+.venv/bin/python src/download.py && .venv/bin/python src/features.py
+
 # fold windows
 .venv/bin/python src/splits.py
 ```
@@ -131,9 +258,16 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 ## Operational notes
 
 - Use `.venv` for everything. Do not install into system python.
-- Baselines are CPU-only and can run concurrently with GPU training.
-- Timings below are from the original development GPU. Run `src/bench.py` before
-  sizing a sweep on different hardware.
+- Baselines, quantiles and the ensemble are CPU-only and run concurrently with GPU
+  training. `--offsets lags` saturates every core; `nice` it if sharing the machine.
+- **Current GPU is an RTX 3090, 24 GB.** Fold 5 runs at 10.3 min vs 41.8 min on the
+  original 1070 — 4.1x. Every timing in this file is 3090-based unless it says
+  otherwise. `config.py` is still tuned for the 1070 (`amp=False`, `batch_size=128`,
+  4.9 GB of 24 GB used); run `src/bench.py` before resizing, and not before the
+  shuffle control finishes.
+- The user wants **concise output**: numbers and verdict, not the reasoning around
+  them. No section headers in chat replies, no restating background, no extended
+  caveat addenda unless they change the conclusion.
 - The user wants **concise output**: numbers and verdict, not the reasoning around
   them. No section headers in chat replies, no restating background, no extended
   caveat addenda unless they change the conclusion.
@@ -145,8 +279,18 @@ reports/stage1_report.txt              section 23 acceptance, per-fold table
 reports/stage1_pooled_predictions.parquet   seed-averaged test preds (the ensemble input)
 reports/baselines_report.txt           section 4a comparison + incremental value
 reports/baselines_comparison.csv       same, machine-readable
+reports/ensemble_report.txt            validation-fitted blends scored on test
+reports/ensemble_{pooled,by_fold,weights}.csv   same, machine-readable
+reports/quantiles_report.txt           sections 15-16 vs a static reference
+reports/quantiles_lags_report.txt      same with 10 lags; no better than one candle
+reports/shuffle_report.txt             the null on randomised targets (PARTIAL, 4/15)
+reports/shuffle_draws.csv              one row per null draw
 runs/stage1/<F2_huber_foldN_seedS>/    predictions.parquet, result.json, model.pt
-runs/baselines/                        predictions.parquet, summary.jsonl
+runs/shuffle/<mode>_draw<k>/<run>/     one directory per null draw
+runs/baselines/, runs/quantiles/       predictions.parquet, summary.jsonl
 src/baselines.py                       six competing models, chunked ridge, GBM
 src/report_baselines.py                pooled + per-fold + incremental-value report
+src/quantiles.py                       11-quantile GBM + P(>cost) classifier
+src/ensemble.py                        zsum / OLS / non-negative blends, val-fitted
+src/train.py:shuffle_target            the two nulls; read the docstring before using
 ```
