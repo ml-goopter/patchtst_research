@@ -1,6 +1,7 @@
 # Status / handoff
 
-Last updated 2026-07-29 (paused mid-run). Read `PLAN.md` for the frozen plan,
+Last updated 2026-07-30 (volatility comparison added; shuffle control still paused
+mid-run). Read `PLAN.md` for the frozen plan,
 `README.md` for layout, hardware limits and leakage controls. This file is only:
 what is done, what the numbers actually say, and what to do next.
 
@@ -11,9 +12,10 @@ Resume command at the bottom of "Next steps". The GPU is free.
 
 ## Where the project is
 
-Stage one (expected 4h log return) is **complete and evaluated**. Stage two has not
-started. The final holdout (2025-04 → 2026-06) has **not been touched by any run** —
-keep it that way until stage one's model choice is settled.
+Stage one (expected 4h log return) is **complete and evaluated**. Stage two's runs are
+complete and reported in `reports/RESULTS.md`. The final holdout (2025-04 → 2026-06)
+has **not been touched by any run** — keep it that way until the model choice is
+settled.
 
 | item | state |
 | --- | --- |
@@ -24,7 +26,8 @@ keep it that way until stage one's model choice is settled.
 | shuffled-target control | **4 of 15 draws** — `reports/shuffle_report.txt`, preliminary and alarming |
 | ensemble check (was step 3) | done — `reports/ensemble_report.txt` |
 | quantile + probability GBM (was step 2) | done — `reports/quantiles_report.txt` |
-| stage two (sections 14–20) | not started |
+| stage two (sections 14–20) | runs complete, 50 runs in `runs/{studentt,multitask}/`; numbers in `reports/RESULTS.md` and `reports/stage2_report.txt`. The narrative sections of this file below still predate them. |
+| section 17 volatility competitors | done — `src/volatility.py`, scored in `reports/stage2_report.txt` section 17 |
 | section 21 ablations | not started |
 | holdout evaluation | not started, deliberately |
 
@@ -110,9 +113,10 @@ rule would fire on ~1% of rows.
 **History adds nothing here either.** The same fit over 10 log-spaced lags
 (`--offsets lags`, 350 features, ~9x the runtime, `reports/quantiles_lags_report.txt`)
 scores CRPS 0.008539 vs 0.008532 and Brier 0.24718 vs 0.24715 — indistinguishable,
-marginally worse. This mirrors gbm_last ≥ gbm_lags on the mean task. Two independent
-model families now say the 4h-ahead information is in the most recent candle, which
-is the strongest argument yet against spending capacity on a 256-candle context.
+marginally worse. This mirrors gbm_last ≥ gbm_lags on the mean task, and the
+volatility comparison below makes it three. Three independent model families now say
+the 4h-ahead information is in the most recent candle, which is the strongest
+argument yet against spending capacity on a 256-candle context.
 
 ### Things that are easy to get wrong when reporting this
 
@@ -134,6 +138,32 @@ is the strongest argument yet against spending capacity on a 256-candle context.
   sign to the period's actual drift and correlation is still positive.
 
 ---
+
+## The volatility target goes the same way
+
+`src/volatility.py`, 7.5 min of CPU for five folds, scored in `reports/stage2_report.txt`
+section 17 against the multi-task head's volatility output (109,240 common test rows):
+
+| model | QLIKE | pearson | MAE |
+| --- | --- | --- | --- |
+| multitask PatchTST | 1.2417 | +0.4645 | 0.006727 |
+| **gbm_vol_last** (35 feats, no history) | **0.9599** | **+0.6004** | 0.005922 |
+| gbm_vol_lags (350 feats) | 0.9582 | +0.5996 | 0.005912 |
+| har_ols (3 features) | 1.0175 | +0.5532 | 0.006205 |
+| rv4_ols (trailing 4h vol, rescaled) | 1.2248 | +0.4703 | 0.006709 |
+| static_median (fold-train median) | 1.7772 | n/a | 0.007729 |
+
+PatchTST beats a constant and loses to everything that is fitted — including a
+two-parameter rescaling of trailing volatility, which it ties. It loses pearson in
+5 folds of 5 and QLIKE in 4 of 5. RESULTS.md called volatility "the one clear
+success"; it is a clear success *for the target*, not for the model. Section 6 of
+`reports/RESULTS.md` has been rewritten accordingly.
+
+The 350-feature lag design ties the 35-feature one here too — a third independent
+family finding nothing in the 256-candle context beyond the last candle.
+
+`y_mae` and `y_mfe` (section 18) still have no competing-model control at all. That
+is now the cheapest outstanding check in the project.
 
 ## The shuffled-target control — partial, and it dominates everything else
 
@@ -242,6 +272,10 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 .venv/bin/python src/quantiles.py --folds 1,2,3,4,5 --tag quantiles
 .venv/bin/python src/report_quantiles.py
 
+# volatility competitors for section 17 (~1.5 min/fold, CPU only); scored by report_stage2
+.venv/bin/python src/volatility.py --folds 1,2,3,4,5 --tag volatility
+.venv/bin/python src/report_stage2.py
+
 # ensemble: validation-fitted blends scored on test (no training, no GPU, seconds)
 .venv/bin/python src/ensemble.py
 
@@ -291,6 +325,8 @@ runs/baselines/, runs/quantiles/       predictions.parquet, summary.jsonl
 src/baselines.py                       six competing models, chunked ridge, GBM
 src/report_baselines.py                pooled + per-fold + incremental-value report
 src/quantiles.py                       11-quantile GBM + P(>cost) classifier
+src/volatility.py                      section 17 competitors: persistence, HAR-RV, GBM
+runs/volatility/                       predictions.parquet, summary.jsonl
 src/ensemble.py                        zsum / OLS / non-negative blends, val-fitted
 src/train.py:shuffle_target            the two nulls; read the docstring before using
 ```

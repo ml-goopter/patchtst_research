@@ -20,6 +20,7 @@ src/baselines.py     PLAN.md section 4a competing baselines (CPU only)
 src/report_baselines.py  baseline comparison + incremental value of PatchTST
 src/quantiles.py     PLAN.md sections 15-16 quantile + probability GBM (CPU only)
 src/report_quantiles.py  coverage, pinball, CRPS, Brier, calibration vs a static reference
+src/volatility.py    PLAN.md section 17 competitors: persistence, HAR-RV, GBM (CPU only)
 src/ensemble.py      blend weights fitted on validation, scored on test
 src/report_shuffle.py    the null this pipeline produces on a randomised target
 src/bench.py         GPU throughput benchmark
@@ -40,6 +41,14 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 .venv/bin/python src/quantiles.py --folds 1,2,3,4,5 --tag quantiles
 .venv/bin/python src/report_quantiles.py
 .venv/bin/python src/ensemble.py
+```
+
+The volatility competitors are scored inside the stage-two report (section 17), so
+they run after the multi-task sweep — ~1.5 min/fold, CPU only:
+
+```bash
+.venv/bin/python src/volatility.py --folds 1,2,3,4,5 --tag volatility
+.venv/bin/python src/report_stage2.py
 ```
 
 The shuffled-target control reuses the training entry point with the target

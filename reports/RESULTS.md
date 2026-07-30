@@ -16,12 +16,12 @@ The model does not predict direction. It does predict risk.
 | Did stage two's distributional head improve the point forecast? | No — it made it worse (+0.0596 → +0.0476) and left it badly over-scaled (calibration slope 0.44 vs 0.60). |
 | Is the predicted return distribution better than a simple quantile GBM? | No — the GBM wins CRPS, all three pinball losses, Brier and ECE. |
 | Are its probability estimates useful? | No — Brier 0.24917 is *worse* than the 0.24859 you get from quoting the base rate. |
-| Can it predict realized volatility? | **Yes** — pearson +0.4645, QLIKE 1.242 vs 1.898 for a static reference. |
+| Can it predict realized volatility? | **Yes, but it is not the best way to** — pearson +0.4645 and QLIKE 1.242 against 1.777 for a constant, but a GBM on the time-`t` features gets +0.6004 and 0.960, and a three-term HAR regression gets +0.5532 and 1.018. |
 | Can it predict the size of intra-horizon excursions? | **Partly** — MAE +0.2788, MFE +0.3313, but it lowballs the dangerous tail badly. |
 | Can it classify market regime? | No — accuracy 0.5038 vs 0.5065 for always answering "sideways". |
 | Do the auxiliary tasks cost anything? | No — +0.0476 vs +0.0469, series correlated +0.9374. Keep them. |
 
-Volatility is predicted roughly **ten times better than direction**. That is the only result in this project that clears its reference by a wide, stable margin.
+Volatility is predicted roughly **ten times better than direction** — the only target where anything here clears a constant by a wide, stable margin. But that is a statement about the target, not about the model: on volatility as on returns, the transformer is beaten by a gradient-boosted tree on the last candle, and this time it loses to a three-feature linear regression as well.
 
 ---
 
@@ -207,27 +207,54 @@ PatchTST spreads its probabilities from 0.048 to 0.889 while the truth spans 0.4
 
 ---
 
-## 6. Volatility (PLAN §17) — the one clear success
+## 6. Volatility (PLAN §17) — a real target, the wrong model
 
-Realized 4h volatility, multitask model only.
+Realized 4h volatility. The multitask head is the only PatchTST output with a volatility forecast; the competitors are `src/volatility.py`, CPU-only, on the same folds, features, purging and train-only normalization, scored on the same 109,240 test rows. Every model regresses log volatility and exponentiates, so all report a median-like point forecast and none gets a mean-vs-median advantage.
 
 | model | MAE | RMSE | RMSE (log) | QLIKE | pearson | spearman |
 |---|---|---|---|---|---|---|
-| **multitask** | **0.006727** | **0.011265** | **0.618675** | **1.241654** | **+0.4645** | **+0.4887** |
-| static median | 0.007695 | 0.012861 | 0.717897 | 1.898271 | n/a | n/a |
+| multitask (PatchTST, 1.7M params) | 0.006727 | 0.011265 | 0.618675 | 1.241654 | +0.4645 | +0.4887 |
+| **gbm_vol_last** (35 feats, no history) | 0.005922 | **0.010214** | 0.546070 | 0.959870 | **+0.6004** | +0.6315 |
+| **gbm_vol_lags** (350 feats, 10 lags) | **0.005912** | 0.010222 | **0.544295** | **0.958208** | +0.5996 | **+0.6348** |
+| har_ols (3 features, OLS) | 0.006205 | 0.010590 | 0.570729 | 1.017523 | +0.5532 | +0.5911 |
+| rv4_ols (trailing 4h vol, rescaled) | 0.006709 | 0.011183 | 0.619380 | 1.224766 | +0.4703 | +0.4930 |
+| rv4_raw (pure persistence) | 0.007959 | 0.012870 | 0.709891 | 2.073039 | +0.4624 | +0.4943 |
+| static_median (fold-train median) | 0.007729 | 0.012773 | 0.721065 | 1.777227 | n/a | n/a |
 
-Beats the static reference on every metric, with QLIKE — the metric that actually matters for volatility, since it penalizes proportional error — improving 35%. Correlation of +0.46 is an order of magnitude above anything achieved on returns.
+The whole competitor set costs 1.2-1.7 minutes of CPU per fold, 7.5 minutes for all five folds, against 25 GPU runs at 10.1 minutes each for the multitask sweep.
 
-### But it fails in the tail
+The transformer beats a constant on every metric — QLIKE 1.242 against 1.777, correlation +0.46 where returns manage +0.047. Against anything that is actually fitted, it loses:
 
-| bucket | n | mean actual | mean predicted | bias | pearson |
-|---|---|---|---|---|---|
-| low | 27,310 | 0.004825 | 0.009170 | **+0.004344** | +0.2367 |
-| medium | 27,310 | 0.009042 | 0.011136 | +0.002094 | +0.1267 |
-| high | 27,310 | 0.014306 | 0.012781 | −0.001524 | +0.1101 |
-| extreme | 27,310 | 0.030344 | 0.015714 | **−0.014630** | +0.2964 |
+- **A gradient-boosted tree on the last candle wins every metric**: QLIKE 0.960 vs 1.242 (−23%), pearson +0.60 vs +0.46, MAE 12% lower.
+- **A three-term HAR regression also wins every metric** — log realized volatility at 4, 24 and 168 candles, four fitted parameters, and it beats a 1.7M-parameter transformer by QLIKE 1.018 vs 1.242.
+- **PatchTST is indistinguishable from rescaled trailing volatility.** `rv4_ols` is one feature and two parameters: pearson +0.4703 vs +0.4645, QLIKE 1.225 vs 1.242 — both marginally in favour of the one-feature model. Whatever the volatility head has learned, it is very close to "next 4h volatility ≈ last 4h volatility, shrunk".
+- **History adds nothing, for the third time.** `gbm_vol_lags` over 10 log-spaced lags across the 256-candle window ties `gbm_vol_last` (QLIKE 0.9582 vs 0.9599, pearson +0.5996 vs +0.6004). The mean task and the quantile task said the same thing.
 
-The prediction is compressed toward the middle. In calm conditions it forecasts roughly double the realized volatility; in the most violent quarter of the sample it forecasts **half** — 0.0157 against an actual 0.0303. The rank ordering across buckets is correct, so the model knows *which* periods are dangerous. It does not know *how* dangerous, and it errs on the wrong side.
+Per fold, PatchTST loses pearson in 5 of 5 and QLIKE in 4 of 5 (fold 3 only, 0.940 vs 0.950):
+
+| model | fold1 | fold2 | fold3 | fold4 | fold5 | mean |
+|---|---|---|---|---|---|---|
+| QLIKE — multitask | 1.2237 | 1.4167 | **0.9400** | 1.1896 | 1.4444 | 1.2429 |
+| QLIKE — gbm_vol_last | **0.8996** | **1.1196** | 0.9497 | **0.8433** | **0.9889** | **0.9602** |
+| pearson — multitask | +0.3748 | +0.3785 | +0.4747 | +0.5012 | +0.4770 | +0.4412 |
+| pearson — gbm_vol_last | **+0.6070** | **+0.4991** | **+0.5514** | **+0.6511** | **+0.5701** | **+0.5758** |
+
+Unlike the return task, this is not a fold-4-carries-everything result: the gap is the same sign and similar size in all five windows.
+
+### Both families fail in the tail, PatchTST worse
+
+| bucket | n | mean actual | multitask pred | bias | gbm_vol_last pred | bias |
+|---|---|---|---|---|---|---|
+| low | 27,310 | 0.004825 | 0.009170 | **+0.004344** | 0.007997 | +0.003171 |
+| medium | 27,310 | 0.009042 | 0.011136 | +0.002094 | 0.010497 | +0.001454 |
+| high | 27,310 | 0.014306 | 0.012781 | −0.001524 | 0.012807 | −0.001498 |
+| extreme | 27,310 | 0.030344 | 0.015714 | **−0.014630** | 0.018095 | **−0.012249** |
+
+Both predictions are compressed toward the middle: roughly double the realized volatility in calm conditions, roughly half in the most violent quarter. Within-bucket correlation is higher for the GBM in every bucket (+0.39 vs +0.30 in the extreme bucket). The compression is therefore a property of fitting the conditional centre of log volatility, not of the architecture — and PatchTST does not compress less, it compresses more.
+
+One asymmetry in the transformer's favour, stated for completeness: the multitask checkpoint is selected on validation *return* NLL (PLAN §20), not on volatility loss, while every competitor is stopped on its own task. A volatility-selected checkpoint would presumably score better. It would have to improve QLIKE by 23% to reach `gbm_vol_last`.
+
+Two notes on the reference row. `static_median` is now the fold's **training** median (QLIKE 1.777); the 1.898 quoted earlier in this project was the pooled test median, which is not a legitimate reference. And competitor predictions are clipped at the fold's train 0.1% quantile of realized volatility — six rows in the panel have four consecutive flat candles, so persistence can forecast exactly zero and QLIKE, a variance ratio, is unbounded there. The clip never binds for PatchTST, whose lowest prediction is 0.0017.
 
 ---
 
@@ -354,7 +381,7 @@ The ranking metrics separate much better than pearson does. Decile spread is 52.
 | Intervals not excessively wide | 358b vs 414b static | pass |
 | Probability Brier and calibration acceptable | 0.24917 vs 0.24859 static | **fail** |
 | Expected return beats zero predictor | R² −0.00156 | **fail** (stage one passed at +0.00202) |
-| Volatility beats static reference | QLIKE 1.242 vs 1.898 | pass |
+| Volatility beats static reference | QLIKE 1.242 vs 1.777 | pass (loses to a GBM at 0.960 and to HAR at 1.018) |
 | Auxiliary tasks do not damage return output | +0.0476 vs +0.0469 | pass |
 | Regime beats base rate | accuracy 0.5038 vs 0.5065 | **fail** |
 
@@ -368,7 +395,7 @@ The ranking metrics separate much better than pearson does. Decile spread is 52.
 4. **Single market, single horizon.** 10 crypto symbols, 4h horizon, one exchange. No claim about generality.
 5. **Costs are modelled as a flat 11 bps** with no market impact, no slippage scaling with size, and no borrow or funding cost. The top-decile net returns are optimistic.
 6. **No hyperparameter search was run.** The architecture is PLAN's specification with one measured change (global rather than per-sample `df`). A tuned model might do better — but the shuffled-target control means a tuned model would also be much easier to overfit to the validation windows than the nominal sample size suggests.
-7. **Volatility and excursion targets were never given a shuffled-target control.** Their much larger effect sizes make them likelier to be real, but this has not been tested.
+7. **Volatility and excursion targets were never given a shuffled-target control.** Their much larger effect sizes make them likelier to be real, but this has not been tested. Volatility now has a competing-model control (§6); the excursion targets still have neither.
 
 ---
 
@@ -376,9 +403,9 @@ The ranking metrics separate much better than pearson does. Decile spread is 52.
 
 **Do not deploy the return forecast or the regime classifier.** The return point forecast is beaten by a CPU tree model, its probability output is beaten by the base rate, and the regime output is beaten by a constant. Stage two's distributional head made the point forecast worse, so if a return forecast is wanted at all, use the stage-one Huber model or `gbm_last`, not the Student-t.
 
-**The volatility head is worth pursuing.** +0.46 correlation and a 35% QLIKE improvement is a real result by a wide margin. Before it could be used it needs its tail compression fixed — the current model halves its forecast in the most extreme quarter of the sample. Training on log-volatility with an asymmetric loss, or explicitly modelling the conditional upper quantile rather than the conditional mean, are the obvious next steps.
+**Volatility is worth forecasting; PatchTST is not the way to forecast it.** The target is genuinely predictable — +0.60 correlation for a tree on 35 time-`t` features, +0.55 for a four-parameter HAR regression — but the transformer reaches only +0.46, which is what two parameters on trailing volatility already deliver. If a volatility forecast is wanted, ship `gbm_vol_last`: minutes of CPU for the whole five-fold fit, better on every pooled metric, ahead in every fold on pearson and in four of five on QLIKE. The tail compression that limits the transformer limits the tree too (both halve their forecast in the most violent quarter), so fixing it — asymmetric loss, or modelling a conditional upper quantile rather than the centre — is worth doing on the tree first, where the iteration loop is minutes rather than hours.
 
-**Keep the multitask architecture.** It costs nothing on returns and produces the only two outputs that work.
+**Keep the multitask architecture** if any PatchTST is kept: it costs nothing on returns and produces the only two outputs that work. Note that this is now a weak recommendation — the volatility output has a cheaper and better substitute, and the excursion outputs have never been given one. Fitting the same GBM to `y_mae` and `y_mfe` is the obvious next control, and on the evidence of every comparison run so far it should be done before any further GPU time is spent.
 
 **The remaining honest use for the return model is as an ensemble component.** Blended with `gbm_last` it reaches +0.0808, above either alone, and it is only +0.278 correlated with that model — it carries information the tree does not. That is a real if modest finding, and it is the strongest claim this project supports.
 
@@ -392,11 +419,11 @@ The ranking metrics separate much better than pearson does. Decile spread is 52.
 |---|---|
 | `reports/stage1_report.txt` | stage one, per-fold, per-seed, per-asset |
 | `reports/baselines_report.txt` | §4a baseline comparison, incremental value |
-| `reports/stage2_report.txt` | §13, §15–20 |
+| `reports/stage2_report.txt` | §13, §15–20, incl. §17 PatchTST vs GBM on volatility |
 | `reports/stage2_metrics.csv` | machine-readable stage-two metrics |
 | `reports/quantiles_report.txt` | §15/§16 quantile and probability GBM |
 | `reports/quantiles_lags_report.txt` | same, lagged-feature variant |
 | `reports/ensemble_report.txt` | validation-fitted blends, per-fold weights |
 | `reports/shuffle_report.txt` | shuffled-target null, 4 draws |
 | `reports/stage1_pooled_predictions.parquet` | pooled test predictions |
-| `runs/{stage1,studentt,multitask,quantiles,baselines,shuffle}/` | per-run checkpoints and `result.json` |
+| `runs/{stage1,studentt,multitask,quantiles,volatility,baselines,shuffle}/` | per-run checkpoints and `result.json` |
