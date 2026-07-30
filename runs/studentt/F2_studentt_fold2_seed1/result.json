@@ -1,0 +1,155 @@
+{
+  "tag": "studentt",
+  "mode": "studentt",
+  "fold": 2,
+  "seed": 1,
+  "feature_set": "F2",
+  "n_features": 35,
+  "n_params": 879049,
+  "n_outputs": 2,
+  "df_mode": "global",
+  "best_epoch": 5,
+  "train_minutes": 8.43,
+  "n_train": 283318,
+  "n_val": 21800,
+  "n_test": 21800,
+  "model": {
+    "context_len": 256,
+    "patch_len": 16,
+    "stride": 8,
+    "n_layers": 3,
+    "d_model": 128,
+    "n_heads": 4,
+    "d_ff": 512,
+    "dropout": 0.1,
+    "revin": true
+  },
+  "train_cfg": {
+    "batch_size": 128,
+    "eval_batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.0001,
+    "max_epochs": 14,
+    "patience": 3,
+    "grad_clip": 1.0,
+    "sample_stride": 4,
+    "amp": false
+  },
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.7162899127505746,
+      "val_return_nll": 1.806854009628296,
+      "val_total": 1.806854009628296,
+      "df_median": 2.502922435905104,
+      "df_at_floor": 0.0,
+      "scale_median": 1.4509060517265904,
+      "minutes": 0.94,
+      "val_return": 1.806854009628296
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.8283782625026221,
+      "val_return_nll": 1.694024682044983,
+      "val_total": 1.694024682044983,
+      "df_median": 2.5131085661179386,
+      "df_at_floor": 0.0,
+      "scale_median": 0.8687768873491143,
+      "minutes": 1.87,
+      "val_return": 1.694024682044983
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.6428131773153367,
+      "val_return_nll": 1.4049049615859985,
+      "val_total": 1.4049049615859985,
+      "df_median": 2.5314132465469825,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5963772234115615,
+      "minutes": 2.81,
+      "val_return": 1.4049049615859985
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.5053715344370486,
+      "val_return_nll": 1.5203059911727905,
+      "val_total": 1.5203059911727905,
+      "df_median": 2.564423860154267,
+      "df_at_floor": 0.0,
+      "scale_median": 0.973586050362011,
+      "minutes": 3.74,
+      "val_return": 1.5203059911727905
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.454019312824153,
+      "val_return_nll": 1.3892693519592285,
+      "val_total": 1.3892693519592285,
+      "df_median": 2.6108790811147733,
+      "df_at_floor": 0.0,
+      "scale_median": 0.8017594583044454,
+      "minutes": 4.68,
+      "val_return": 1.3892693519592285
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.413715422153473,
+      "val_return_nll": 1.3656595945358276,
+      "val_total": 1.3656595945358276,
+      "df_median": 2.6605596074408506,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6446734869536292,
+      "minutes": 5.62,
+      "val_return": 1.3656595945358276
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.3850715747809152,
+      "val_return_nll": 1.3902798891067505,
+      "val_total": 1.3902798891067505,
+      "df_median": 2.7018982418600896,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7059575692858779,
+      "minutes": 6.55,
+      "val_return": 1.3902798891067505
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.3652930883724337,
+      "val_return_nll": 1.3823362588882446,
+      "val_total": 1.3823362588882446,
+      "df_median": 2.7319289554462385,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7004946490718806,
+      "minutes": 7.49,
+      "val_return": 1.3823362588882446
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.3487706812710538,
+      "val_return_nll": 1.3856338262557983,
+      "val_total": 1.3856338262557983,
+      "df_median": 2.7563772525476864,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7973633120936228,
+      "minutes": 8.43,
+      "val_return": 1.3856338262557983
+    }
+  ],
+  "val": {
+    "n": 21800,
+    "return_nll": 1.365783452987671,
+    "df_median": 2.7563772525476864,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  },
+  "test": {
+    "n": 21800,
+    "return_nll": 1.1877385377883911,
+    "df_median": 2.7563772525476864,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  }
+}

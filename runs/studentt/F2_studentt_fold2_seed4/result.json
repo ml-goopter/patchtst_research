@@ -1,0 +1,155 @@
+{
+  "tag": "studentt",
+  "mode": "studentt",
+  "fold": 2,
+  "seed": 4,
+  "feature_set": "F2",
+  "n_features": 35,
+  "n_params": 879049,
+  "n_outputs": 2,
+  "df_mode": "global",
+  "best_epoch": 5,
+  "train_minutes": 8.43,
+  "n_train": 283318,
+  "n_val": 21800,
+  "n_test": 21800,
+  "model": {
+    "context_len": 256,
+    "patch_len": 16,
+    "stride": 8,
+    "n_layers": 3,
+    "d_model": 128,
+    "n_heads": 4,
+    "d_ff": 512,
+    "dropout": 0.1,
+    "revin": true
+  },
+  "train_cfg": {
+    "batch_size": 128,
+    "eval_batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.0001,
+    "max_epochs": 14,
+    "patience": 3,
+    "grad_clip": 1.0,
+    "sample_stride": 4,
+    "amp": false
+  },
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.7401985351789728,
+      "val_return_nll": 1.7331898212432861,
+      "val_total": 1.7331898212432861,
+      "df_median": 2.504153931803957,
+      "df_at_floor": 0.0,
+      "scale_median": 1.1401563859081072,
+      "minutes": 0.94,
+      "val_return": 1.7331898212432861
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.9645109566110135,
+      "val_return_nll": 1.4742261171340942,
+      "val_total": 1.4742261171340942,
+      "df_median": 2.5065447802996923,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5193731774420489,
+      "minutes": 1.87,
+      "val_return": 1.4742261171340942
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.6530377421568447,
+      "val_return_nll": 1.480208158493042,
+      "val_total": 1.480208158493042,
+      "df_median": 2.525159427061555,
+      "df_at_floor": 0.0,
+      "scale_median": 0.8754514722192488,
+      "minutes": 2.81,
+      "val_return": 1.480208158493042
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.5125317052813643,
+      "val_return_nll": 1.4243141412734985,
+      "val_total": 1.4243141412734985,
+      "df_median": 2.551968628168253,
+      "df_at_floor": 0.0,
+      "scale_median": 0.4531369504624272,
+      "minutes": 3.75,
+      "val_return": 1.4243141412734985
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.451824327453379,
+      "val_return_nll": 1.4291846752166748,
+      "val_total": 1.4291846752166748,
+      "df_median": 2.5928321029232224,
+      "df_at_floor": 0.0,
+      "scale_median": 0.9186114982253653,
+      "minutes": 4.68,
+      "val_return": 1.4291846752166748
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.4105272179045831,
+      "val_return_nll": 1.3816781044006348,
+      "val_total": 1.3816781044006348,
+      "df_median": 2.643505524721321,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6882653453612262,
+      "minutes": 5.62,
+      "val_return": 1.3816781044006348
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.38505908341184,
+      "val_return_nll": 1.3826727867126465,
+      "val_total": 1.3826727867126465,
+      "df_median": 2.6876838511129995,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7510778850734021,
+      "minutes": 6.55,
+      "val_return": 1.3826727867126465
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.3642878450641562,
+      "val_return_nll": 1.3820141553878784,
+      "val_total": 1.3820141553878784,
+      "df_median": 2.71947958210482,
+      "df_at_floor": 0.0,
+      "scale_median": 0.685738361554144,
+      "minutes": 7.49,
+      "val_return": 1.3820141553878784
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.3487464761906152,
+      "val_return_nll": 1.381806492805481,
+      "val_total": 1.381806492805481,
+      "df_median": 2.7445518411688985,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6857167605347817,
+      "minutes": 8.43,
+      "val_return": 1.381806492805481
+    }
+  ],
+  "val": {
+    "n": 21800,
+    "return_nll": 1.381305456161499,
+    "df_median": 2.7445518411688985,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  },
+  "test": {
+    "n": 21800,
+    "return_nll": 1.2078537940979004,
+    "df_median": 2.7445518411688985,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  }
+}

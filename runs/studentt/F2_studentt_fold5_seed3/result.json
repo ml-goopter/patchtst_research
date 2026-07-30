@@ -1,0 +1,166 @@
+{
+  "tag": "studentt",
+  "mode": "studentt",
+  "fold": 5,
+  "seed": 3,
+  "feature_set": "F2",
+  "n_features": 35,
+  "n_params": 879049,
+  "n_outputs": 2,
+  "df_mode": "global",
+  "best_epoch": 6,
+  "train_minutes": 11.39,
+  "n_train": 349078,
+  "n_val": 22040,
+  "n_test": 21560,
+  "model": {
+    "context_len": 256,
+    "patch_len": 16,
+    "stride": 8,
+    "n_layers": 3,
+    "d_model": 128,
+    "n_heads": 4,
+    "d_ff": 512,
+    "dropout": 0.1,
+    "revin": true
+  },
+  "train_cfg": {
+    "batch_size": 128,
+    "eval_batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.0001,
+    "max_epochs": 14,
+    "patience": 3,
+    "grad_clip": 1.0,
+    "sample_stride": 4,
+    "amp": false
+  },
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.7289991758086465,
+      "val_return_nll": 1.8803446292877197,
+      "val_total": 1.8803446292877197,
+      "df_median": 2.506659448047419,
+      "df_at_floor": 0.0,
+      "scale_median": 0.9536463205343917,
+      "minutes": 1.14,
+      "val_return": 1.8803446292877197
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.9272743257259692,
+      "val_return_nll": 3.8643977642059326,
+      "val_total": 3.8643977642059326,
+      "df_median": 2.5159476807509553,
+      "df_at_floor": 0.0,
+      "scale_median": 0.4147587542094672,
+      "minutes": 2.28,
+      "val_return": 3.8643977642059326
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.6203072224893877,
+      "val_return_nll": 1.713330864906311,
+      "val_total": 1.713330864906311,
+      "df_median": 2.5449630285619422,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5297850696540216,
+      "minutes": 3.41,
+      "val_return": 1.713330864906311
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.464692416254027,
+      "val_return_nll": 1.5150761604309082,
+      "val_total": 1.5150761604309082,
+      "df_median": 2.5955607352837564,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6000561834628819,
+      "minutes": 4.55,
+      "val_return": 1.5150761604309082
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.4148649332110832,
+      "val_return_nll": 1.502596139907837,
+      "val_total": 1.502596139907837,
+      "df_median": 2.6727714322454377,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6056901470751637,
+      "minutes": 5.7,
+      "val_return": 1.502596139907837
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.3878784226881793,
+      "val_return_nll": 1.4862595796585083,
+      "val_total": 1.4862595796585083,
+      "df_median": 2.717457741004828,
+      "df_at_floor": 0.0,
+      "scale_median": 0.8493446984691287,
+      "minutes": 6.84,
+      "val_return": 1.4862595796585083
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.3719559642226815,
+      "val_return_nll": 1.4765678644180298,
+      "val_total": 1.4765678644180298,
+      "df_median": 2.7581490265628132,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7251323747688085,
+      "minutes": 7.97,
+      "val_return": 1.4765678644180298
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.3593775317116568,
+      "val_return_nll": 1.4806267023086548,
+      "val_total": 1.4806267023086548,
+      "df_median": 2.7915899366105608,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7423810340905819,
+      "minutes": 9.11,
+      "val_return": 1.4806267023086548
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.3408034431619729,
+      "val_return_nll": 1.4799683094024658,
+      "val_total": 1.4799683094024658,
+      "df_median": 2.8169061780913505,
+      "df_at_floor": 0.0,
+      "scale_median": 0.7335835258224912,
+      "minutes": 10.25,
+      "val_return": 1.4799683094024658
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.32927926981554,
+      "val_return_nll": 1.4867137670516968,
+      "val_total": 1.4867137670516968,
+      "df_median": 2.8351227141184907,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6795917559152072,
+      "minutes": 11.39,
+      "val_return": 1.4867137670516968
+    }
+  ],
+  "val": {
+    "n": 22040,
+    "return_nll": 1.4764502048492432,
+    "df_median": 2.8351227141184907,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  },
+  "test": {
+    "n": 21560,
+    "return_nll": 1.5696742534637451,
+    "df_median": 2.8351227141184907,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  }
+}

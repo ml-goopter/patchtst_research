@@ -1,0 +1,155 @@
+{
+  "tag": "studentt",
+  "mode": "studentt",
+  "fold": 4,
+  "seed": 4,
+  "feature_set": "F2",
+  "n_features": 35,
+  "n_params": 879049,
+  "n_outputs": 2,
+  "df_mode": "global",
+  "best_epoch": 5,
+  "train_minutes": 9.64,
+  "n_train": 326998,
+  "n_val": 22040,
+  "n_test": 22040,
+  "model": {
+    "context_len": 256,
+    "patch_len": 16,
+    "stride": 8,
+    "n_layers": 3,
+    "d_model": 128,
+    "n_heads": 4,
+    "d_ff": 512,
+    "dropout": 0.1,
+    "revin": true
+  },
+  "train_cfg": {
+    "batch_size": 128,
+    "eval_batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.0001,
+    "max_epochs": 14,
+    "patience": 3,
+    "grad_clip": 1.0,
+    "sample_stride": 4,
+    "amp": false
+  },
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.726765301119367,
+      "val_return_nll": 1.691394567489624,
+      "val_total": 1.691394567489624,
+      "df_median": 2.5031701160655175,
+      "df_at_floor": 0.0,
+      "scale_median": 0.657262158826045,
+      "minutes": 1.08,
+      "val_return": 1.691394567489624
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.8504341393009598,
+      "val_return_nll": 1.5715851783752441,
+      "val_total": 1.5715851783752441,
+      "df_median": 2.514091040191032,
+      "df_at_floor": 0.0,
+      "scale_median": 0.3274086108701294,
+      "minutes": 2.15,
+      "val_return": 1.5715851783752441
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.5814307625864592,
+      "val_return_nll": 1.41837477684021,
+      "val_total": 1.41837477684021,
+      "df_median": 2.5372890717621344,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6113680564418549,
+      "minutes": 3.22,
+      "val_return": 1.41837477684021
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.488949026673426,
+      "val_return_nll": 1.299283742904663,
+      "val_total": 1.299283742904663,
+      "df_median": 2.5680600055353375,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5854739968858278,
+      "minutes": 4.29,
+      "val_return": 1.299283742904663
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.438619417203984,
+      "val_return_nll": 1.3270069360733032,
+      "val_total": 1.3270069360733032,
+      "df_median": 2.622487900852427,
+      "df_at_floor": 0.0,
+      "scale_median": 0.8169665025305585,
+      "minutes": 5.36,
+      "val_return": 1.3270069360733032
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.4035039929343687,
+      "val_return_nll": 1.290610909461975,
+      "val_total": 1.290610909461975,
+      "df_median": 2.6737410783272337,
+      "df_at_floor": 0.0,
+      "scale_median": 0.6222125736199696,
+      "minutes": 6.43,
+      "val_return": 1.290610909461975
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.380241657086941,
+      "val_return_nll": 1.318624496459961,
+      "val_total": 1.318624496459961,
+      "df_median": 2.7176970250077,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5928156806695084,
+      "minutes": 7.5,
+      "val_return": 1.318624496459961
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.3638685051824007,
+      "val_return_nll": 1.3026578426361084,
+      "val_total": 1.3026578426361084,
+      "df_median": 2.748167071379302,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5703939499198458,
+      "minutes": 8.57,
+      "val_return": 1.3026578426361084
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.3494653379040331,
+      "val_return_nll": 1.3004636764526367,
+      "val_total": 1.3004636764526367,
+      "df_median": 2.7722229051730536,
+      "df_at_floor": 0.0,
+      "scale_median": 0.5927405110141855,
+      "minutes": 9.64,
+      "val_return": 1.3004636764526367
+    }
+  ],
+  "val": {
+    "n": 22040,
+    "return_nll": 1.2899036407470703,
+    "df_median": 2.7722229051730536,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  },
+  "test": {
+    "n": 22040,
+    "return_nll": 1.481825351715088,
+    "df_median": 2.7722229051730536,
+    "df_at_floor": 0.0,
+    "df_at_cap": 0.0,
+    "scale_at_floor": 0.0
+  }
+}
