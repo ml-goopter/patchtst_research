@@ -54,18 +54,76 @@ calibration by predicted-probability quintile (studentt / multitask / gbm)
          4       0.5773 -> 0.5158       0.5781 -> 0.5134       0.5414 -> 0.5232
 
 ----------------------------------------------------------------------------------------------------
-section 17 - volatility validation (multitask only)
+section 17 - volatility validation, PatchTST vs GBM
 ----------------------------------------------------------------------------------------------------
+aligned on 109,240 rows common to the multi-task run and src/volatility.py (109,240 multi-task rows)
+competitors are CPU-only, fitted per fold on the F2 features with the same folds,
+purging and train-only normalization; static_median is the fold's TRAIN median.
+All models regress log volatility and exponentiate, so all report a median-like
+point forecast and none gets a mean-vs-median advantage. One asymmetry remains:
+the multi-task checkpoint is selected on validation return NLL (PLAN.md section
+20), not on volatility loss, while every competitor is selected on its own task.
+Competitor predictions are clipped at the fold's train 0.1% quantile of realized
+volatility, since persistence can forecast exactly zero and QLIKE is a variance
+ratio. The clip never binds for the transformer: its lowest prediction is 0.0017.
+
          model        MAE       RMSE   RMSE_log      QLIKE   pearson  spearman
      multitask   0.006727   0.011265   0.618675   1.241654   +0.4645   +0.4887
- static_median   0.007695   0.012861   0.717897   1.898271      +nan      +nan
+  gbm_vol_last   0.005922   0.010214   0.546070   0.959870   +0.6004   +0.6315
+  gbm_vol_lags   0.005912   0.010222   0.544295   0.958208   +0.5996   +0.6348
+       har_ols   0.006205   0.010590   0.570729   1.017523   +0.5532   +0.5911
+       rv4_ols   0.006709   0.011183   0.619380   1.224766   +0.4703   +0.4930
+       rv4_raw   0.007959   0.012870   0.709891   2.073039   +0.4624   +0.4943
+ static_median   0.007729   0.012773   0.721065   1.777227   -0.1089   -0.1307
+static_median is constant within a fold, so its pooled correlation is an artefact
+of the median moving between folds; per fold it is undefined.
 
-by realized-volatility bucket
-    bucket        n  mean_actual   mean_pred       bias   pearson
-       low    27310     0.004825    0.009170  +0.004344   +0.2367
-    medium    27310     0.009042    0.011136  +0.002094   +0.1267
-      high    27310     0.014306    0.012781  -0.001524   +0.1101
-   extreme    27310     0.030344    0.015714  -0.014630   +0.2964
+test QLIKE by fold (lower is better)
+         model     fold1     fold2     fold3     fold4     fold5      mean
+     multitask    1.2237    1.4167    0.9400    1.1896    1.4444    1.2429
+  gbm_vol_last    0.8996    1.1196    0.9497    0.8433    0.9889    0.9602
+  gbm_vol_lags    0.9267    1.1327    0.9342    0.8306    0.9687    0.9586
+       har_ols    0.9725    1.1522    0.9952    0.9048    1.0649    1.0179
+       rv4_ols    1.1154    1.1862    1.0728    1.2649    1.4887    1.2256
+       rv4_raw    1.9329    2.2970    2.2042    1.9269    2.0037    2.0729
+ static_median    1.5982    1.3536    1.1442    2.2883    2.5112    1.7791
+
+test pearson by fold
+         model     fold1     fold2     fold3     fold4     fold5      mean
+     multitask   +0.3748   +0.3785   +0.4747   +0.5012   +0.4770   +0.4412
+  gbm_vol_last   +0.6070   +0.4991   +0.5514   +0.6511   +0.5701   +0.5758
+  gbm_vol_lags   +0.6006   +0.4894   +0.5562   +0.6508   +0.5748   +0.5743
+       har_ols   +0.5666   +0.4648   +0.4515   +0.6086   +0.5202   +0.5223
+       rv4_ols   +0.4767   +0.3818   +0.3939   +0.5185   +0.4632   +0.4468
+       rv4_raw   +0.4597   +0.3624   +0.4073   +0.5122   +0.4464   +0.4376
+ static_median      +nan      +nan      +nan      +nan      +nan      +nan
+
+by realized-volatility bucket (quartiles of realized volatility)
+         model    bucket        n  mean_actual   mean_pred       bias   pearson
+     multitask       low    27310     0.004825    0.009170  +0.004344   +0.2367
+     multitask    medium    27310     0.009042    0.011136  +0.002094   +0.1267
+     multitask      high    27310     0.014306    0.012781  -0.001524   +0.1101
+     multitask   extreme    27310     0.030344    0.015714  -0.014630   +0.2964
+  gbm_vol_last       low    27310     0.004825    0.007997  +0.003171   +0.3077
+  gbm_vol_last    medium    27310     0.009042    0.010497  +0.001454   +0.1590
+  gbm_vol_last      high    27310     0.014306    0.012807  -0.001498   +0.1724
+  gbm_vol_last   extreme    27310     0.030344    0.018095  -0.012249   +0.3901
+  gbm_vol_lags       low    27310     0.004825    0.007968  +0.003143   +0.3123
+  gbm_vol_lags    medium    27310     0.009042    0.010506  +0.001464   +0.1626
+  gbm_vol_lags      high    27310     0.014306    0.012827  -0.001479   +0.1729
+  gbm_vol_lags   extreme    27310     0.030344    0.018108  -0.012236   +0.3837
+       har_ols       low    27310     0.004825    0.008506  +0.003681   +0.2691
+       har_ols    medium    27310     0.009042    0.010808  +0.001766   +0.1403
+       har_ols      high    27310     0.014306    0.012970  -0.001336   +0.1507
+       har_ols   extreme    27310     0.030344    0.017535  -0.012809   +0.3291
+       rv4_ols       low    27310     0.004825    0.009418  +0.004592   +0.2322
+       rv4_ols    medium    27310     0.009042    0.011290  +0.002248   +0.1064
+       rv4_ols      high    27310     0.014306    0.012942  -0.001364   +0.1184
+       rv4_ols   extreme    27310     0.030344    0.016101  -0.014243   +0.2860
+       rv4_raw       low    27310     0.004825    0.008701  +0.003876   +0.2045
+       rv4_raw    medium    27310     0.009042    0.011862  +0.002820   +0.0996
+       rv4_raw      high    27310     0.014306    0.015184  +0.000879   +0.1177
+       rv4_raw   extreme    27310     0.030344    0.022800  -0.007543   +0.2892
 
 ----------------------------------------------------------------------------------------------------
 section 18 - excursion validation (multitask only)
