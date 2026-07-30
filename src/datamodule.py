@@ -110,6 +110,67 @@ def _covered_rows(idx: np.ndarray, L: int, n: int) -> np.ndarray:
     return np.flatnonzero(covered)
 
 
+class MultiPanel(Panel):
+    """Panel over several targets at once (PLAN.md section 20).
+
+    Eligibility requires every requested target to be finite, so asking for
+    ["y_return"] alone reproduces stage one's sample exactly and the Student-t
+    run stays directly comparable to the Huber run. Adding y_regime drops the 886
+    rows where the regime label is undefined.
+    """
+
+    def __init__(self, panel: pd.DataFrame, feature_set: str, targets: list[str]):
+        super().__init__(panel, feature_set, target=targets[0])
+        self.targets = targets
+        Y = panel.sort_values(["symbol", "timestamp"])[targets].to_numpy(np.float32)
+        self.eligible = self.eligible & np.isfinite(Y).all(axis=1)
+        self.y = np.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+class TargetNormalizer:
+    """Per-target train-only scaling (PLAN.md section 11).
+
+    returns / MAE / MFE  robust scaling
+    volatility           log(v + eps) then robust scaling
+    regime               untouched -- it is a class index, not a quantity
+    """
+
+    LOG_TARGETS = {"y_volatility"}
+    RAW_TARGETS = {"y_regime"}
+
+    def __init__(self, Y: np.ndarray, train_idx: np.ndarray, targets: list[str]):
+        self.targets = targets
+        Yt = self._pre(Y[train_idx])
+        self.med = np.median(Yt, axis=0).astype(np.float32)
+        iqr = (np.quantile(Yt, 0.75, axis=0) - np.quantile(Yt, 0.25, axis=0)).astype(np.float32)
+        self.scale = np.where(iqr < 1e-8, 1.0, iqr).astype(np.float32)
+        for i, t in enumerate(targets):  # leave class indices alone
+            if t in self.RAW_TARGETS:
+                self.med[i], self.scale[i] = 0.0, 1.0
+
+    def _pre(self, Y: np.ndarray) -> np.ndarray:
+        Y = Y.copy()
+        for i, t in enumerate(self.targets):
+            if t in self.LOG_TARGETS:
+                Y[:, i] = np.log(np.maximum(Y[:, i], 0) + C.EPS)
+        return Y
+
+    def transform(self, Y: np.ndarray) -> np.ndarray:
+        return ((self._pre(Y) - self.med) / self.scale).astype(np.float32)
+
+    def inverse(self, Z: np.ndarray, target: str) -> np.ndarray:
+        """Invert one target's column back to its natural units."""
+        i = self.targets.index(target)
+        v = Z * self.scale[i] + self.med[i]
+        return np.exp(v) - C.EPS if target in self.LOG_TARGETS else v
+
+    def inverse_scale(self, s: np.ndarray, target: str) -> np.ndarray:
+        """Scale-like quantities (a distribution's sigma) carry no offset."""
+        if target in self.LOG_TARGETS:
+            raise ValueError(f"{target} is log-transformed; a scale does not invert affinely")
+        return s * self.scale[self.targets.index(target)]
+
+
 class GPUWindows:
     """Holds normalized features/targets on-device; yields windowed batches."""
 
