@@ -23,10 +23,13 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import config as C
-from src.metrics import decile_monotonicity, expected_return_metrics
+from src.metrics import decile_monotonicity, expected_return_metrics, qlike, volatility_metrics
 from src.report_quantiles import QN, dist_metrics, prob_metrics
 
 KEY = ["fold", "symbol", "timestamp"]
+
+# section 17, in reporting order: the transformer, then what CPU minutes buy
+VOL_MODELS = ["gbm_vol_last", "gbm_vol_lags", "har_ols", "rv4_ols", "rv4_raw", "static_median"]
 
 
 def load(tag: str) -> pd.DataFrame:
@@ -48,17 +51,26 @@ def top_decile_net(p: np.ndarray, y: np.ndarray) -> float:
     return float(y[p >= np.quantile(p, 0.9)].mean() - C.COST_THRESHOLD)
 
 
-def qlike(actual: np.ndarray, pred: np.ndarray) -> float:
-    """QLIKE on variance; robust to noise in the volatility proxy."""
-    va = np.maximum(actual, 1e-8) ** 2
-    vp = np.maximum(pred, 1e-8) ** 2
-    r = va / vp
-    return float(np.mean(r - np.log(r) - 1.0))
-
-
 def vol_buckets(v: np.ndarray) -> tuple[np.ndarray, list[str]]:
     e = np.quantile(v, [0.25, 0.50, 0.75])
     return np.digitize(v, e), ["low", "medium", "high", "extreme"]
+
+
+def load_volatility(mt: pd.DataFrame) -> pd.DataFrame:
+    """CPU volatility competitors (src/volatility.py), one column per model.
+
+    Inner-joined onto the multi-task rows: the multi-task sample is the smaller of
+    the two (it also requires a defined regime label), and every model has to be
+    scored on identical rows for the comparison to mean anything.
+    """
+    f = C.RUNS / "volatility" / "predictions.parquet"
+    if not f.exists():
+        return pd.DataFrame()
+    v = pd.read_parquet(f)
+    v = v[v.split == "test"]
+    w = v.pivot_table(index=KEY, columns="model", values="pred_volatility").reset_index()
+    w.columns.name = None
+    return mt[KEY + ["pred_volatility", "actual_volatility"]].merge(w, on=KEY, how="inner")
 
 
 def main() -> None:
@@ -185,29 +197,79 @@ def main() -> None:
     if "pred_volatility" in mt.columns:
         P("")
         P("-" * 100)
-        P("section 17 - volatility validation (multitask only)")
+        P("section 17 - volatility validation, PatchTST vs GBM")
         P("-" * 100)
-        pv = mt.pred_volatility.to_numpy(float)
-        av = mt.actual_volatility.to_numpy(float)
-        stat_v = np.full_like(pv, np.median(av))  # unconditional reference
+        v = load_volatility(mt)
+        have_run = not v.empty
+        if not have_run:  # nothing to compare against; keep the original single-model view
+            v = mt[KEY + ["pred_volatility", "actual_volatility"]].copy()
+            v["static_median"] = float(np.median(v.actual_volatility))
+            cols = ["static_median"]
+            P("runs/volatility not found -- run src/volatility.py for the GBM comparison.")
+            P("static_median here is the pooled TEST median, not a train-only reference.")
+        else:
+            cols = [m for m in VOL_MODELS if m in v.columns]
+            P(f"aligned on {len(v):,} rows common to the multi-task run and src/volatility.py "
+              f"({len(mt):,} multi-task rows)")
+            P("competitors are CPU-only, fitted per fold on the F2 features with the same folds,")
+            P("purging and train-only normalization; static_median is the fold's TRAIN median.")
+            P("All models regress log volatility and exponentiate, so all report a median-like")
+            P("point forecast and none gets a mean-vs-median advantage. One asymmetry remains:")
+            P("the multi-task checkpoint is selected on validation return NLL (PLAN.md section")
+            P("20), not on volatility loss, while every competitor is selected on its own task.")
+            P("Competitor predictions are clipped at the fold's train 0.1% quantile of realized")
+            P("volatility, since persistence can forecast exactly zero and QLIKE is a variance")
+            P("ratio. The clip never binds for the transformer: its lowest prediction is 0.0017.")
+        av = v.actual_volatility.to_numpy(float)
+        named = [("multitask", "pred_volatility")] + [(c, c) for c in cols]
+        P("")
         P(f"{'model':>14} {'MAE':>10} {'RMSE':>10} {'RMSE_log':>10} {'QLIKE':>10} "
           f"{'pearson':>9} {'spearman':>9}")
-        for name, pp in [("multitask", pv), ("static_median", stat_v)]:
-            P(f"{name:>14} {np.mean(np.abs(pp-av)):>10.6f} "
-              f"{np.sqrt(np.mean((pp-av)**2)):>10.6f} "
-              f"{np.sqrt(np.mean((np.log(np.maximum(pp,1e-8))-np.log(np.maximum(av,1e-8)))**2)):>10.6f} "
-              f"{qlike(av, pp):>10.6f} "
-              f"{np.corrcoef(pp,av)[0,1]:>+9.4f} {stats.spearmanr(pp,av).statistic:>+9.4f}")
-            rows.append({"section": "17", "model": name, "mae": float(np.mean(np.abs(pp-av))),
-                         "pearson": float(np.corrcoef(pp, av)[0, 1]), "qlike": qlike(av, pp)})
+        for name, col in named:
+            m = volatility_metrics(v[col].to_numpy(float), av)
+            P(f"{name:>14} {m['mae']:>10.6f} {m['rmse']:>10.6f} {m['rmse_log']:>10.6f} "
+              f"{m['qlike']:>10.6f} {m['pearson']:>+9.4f} {m['spearman']:>+9.4f}")
+            rows.append({"section": "17", "model": name, "mae": m["mae"], "rmse": m["rmse"],
+                         "rmse_log": m["rmse_log"], "qlike": m["qlike"],
+                         "pearson": m["pearson"], "spearman": m["spearman"]})
+
+        if have_run:
+            P("static_median is constant within a fold, so its pooled correlation is an artefact")
+            P("of the median moving between folds; per fold it is undefined.")
         P("")
-        P("by realized-volatility bucket")
-        b, names = vol_buckets(av)
-        P(f"{'bucket':>10} {'n':>8} {'mean_actual':>12} {'mean_pred':>11} {'bias':>10} {'pearson':>9}")
-        for k, nm in enumerate(names):
-            m = b == k
-            P(f"{nm:>10} {int(m.sum()):>8} {av[m].mean():>12.6f} {pv[m].mean():>11.6f} "
-              f"{pv[m].mean()-av[m].mean():>+10.6f} {np.corrcoef(pv[m],av[m])[0,1]:>+9.4f}")
+        P("test QLIKE by fold (lower is better)")
+        P(f"{'model':>14} " + " ".join(f"{f'fold{k}':>9}" for k in range(1, 6)) + f" {'mean':>9}")
+        for name, col in named:
+            x = [qlike(s.actual_volatility.to_numpy(float), s[col].to_numpy(float))
+                 for s in (v[v.fold == k] for k in range(1, 6))]
+            P(f"{name:>14} " + " ".join(f"{q:>9.4f}" for q in x) + f" {np.mean(x):>9.4f}")
+
+        P("")
+        P("test pearson by fold")
+        P(f"{'model':>14} " + " ".join(f"{f'fold{k}':>9}" for k in range(1, 6)) + f" {'mean':>9}")
+        for name, col in named:
+            x = []
+            for k in range(1, 6):
+                s = v[v.fold == k]
+                p = s[col].to_numpy(float)
+                x.append(np.nan if np.std(p) < 1e-14
+                         else float(np.corrcoef(p, s.actual_volatility.to_numpy(float))[0, 1]))
+            P(f"{name:>14} " + " ".join(f"{q:>+9.4f}" for q in x) + f" {np.mean(x):>+9.4f}")
+
+        P("")
+        P("by realized-volatility bucket (quartiles of realized volatility)")
+        P(f"{'model':>14} {'bucket':>9} {'n':>8} {'mean_actual':>12} {'mean_pred':>11} "
+          f"{'bias':>10} {'pearson':>9}")
+        b, bnames = vol_buckets(av)
+        for name, col in named:
+            if name == "static_median":
+                continue
+            pv = v[col].to_numpy(float)
+            for k, nm in enumerate(bnames):
+                m = b == k
+                P(f"{name:>14} {nm:>9} {int(m.sum()):>8} {av[m].mean():>12.6f} "
+                  f"{pv[m].mean():>11.6f} {pv[m].mean()-av[m].mean():>+10.6f} "
+                  f"{np.corrcoef(pv[m], av[m])[0,1]:>+9.4f}")
 
     # ------------------------------------------------------ section 18, MAE / MFE
     if "pred_mae" in mt.columns:

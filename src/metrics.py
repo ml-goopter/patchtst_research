@@ -65,6 +65,49 @@ def expected_return_metrics(pred: np.ndarray, actual: np.ndarray, cost: float) -
     return out
 
 
+def qlike(actual: np.ndarray, pred: np.ndarray) -> float:
+    """QLIKE on variance; robust to noise in the volatility proxy.
+
+    Penalises proportional error, so it is not dominated by the few extreme
+    realizations that RMSE is. Zero for a perfect forecast, positive otherwise.
+    """
+    va = np.maximum(np.asarray(actual, float), 1e-8) ** 2
+    vp = np.maximum(np.asarray(pred, float), 1e-8) ** 2
+    r = va / vp
+    return float(np.mean(r - np.log(r) - 1.0))
+
+
+def volatility_metrics(pred: np.ndarray, actual: np.ndarray) -> dict:
+    """Point-forecast accuracy for realized volatility (PLAN.md section 17).
+
+    Both a level view (MAE/RMSE, in log-return units) and a proportional view
+    (RMSE on logs, QLIKE), because a forecast can win one and lose the other:
+    volatility spans two orders of magnitude, so RMSE is decided almost entirely
+    by the extreme quartile while QLIKE weights a 2x error the same everywhere.
+    """
+    pred = np.asarray(pred, float)
+    actual = np.asarray(actual, float)
+    err = pred - actual
+    lp = np.log(np.maximum(pred, 1e-8))
+    la = np.log(np.maximum(actual, 1e-8))
+    out = {
+        "n": len(pred),
+        "mae": float(np.mean(np.abs(err))),
+        "rmse": float(np.sqrt(np.mean(err**2))),
+        "rmse_log": float(np.sqrt(np.mean((lp - la) ** 2))),
+        "qlike": qlike(actual, pred),
+        "bias": float(np.mean(err)),
+        "mean_pred": float(np.mean(pred)),
+        "mean_actual": float(np.mean(actual)),
+    }
+    if np.std(pred) < 1e-14:  # a constant forecast has no rank information
+        out["pearson"] = out["spearman"] = np.nan
+    else:
+        out["pearson"] = float(stats.pearsonr(pred, actual).statistic)
+        out["spearman"] = float(stats.spearmanr(pred, actual).statistic)
+    return out
+
+
 def decile_monotonicity(pred: np.ndarray, actual: np.ndarray, n_bins: int = 10) -> dict:
     """Do larger predicted returns correspond to larger realized returns?
     (PLAN.md section 23, expected-return criterion 4)"""
