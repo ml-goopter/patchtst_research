@@ -1,0 +1,51 @@
+================================================================================================
+RETURN DISTRIBUTION + PROBABILITY VALIDATION (PLAN.md sections 15, 16)
+================================================================================================
+
+Quantile and probability GBM on the F2 features at time t only, same folds,
+purging and train-only normalization as stage one. 'static' predicts the training
+window's unconditional quantiles and base rate for every row -- the distributional
+equivalent of the zero predictor. Test splits only.
+
+------------------------------------------------------------------------------------------------
+section 15 - quantile validation, pooled over 5 test windows
+------------------------------------------------------------------------------------------------
+         model        n   p10cov   p50cov   p90cov   c80cov      CRPS      NLL     width
+  gbm_quantile   109240   0.1115   0.4960   0.8900   0.7786  0.008539   -2.731    348.6b
+        static   109240   0.0826   0.5005   0.9194   0.8368  0.008852   -2.706    414.4b
+        target            0.1000   0.5000   0.9000   0.8000
+
+pinball loss (lower is better), pooled
+         model          p10          p50          p90
+  gbm_quantile     0.003092     0.005982     0.002932
+        static     0.003370     0.006008     0.003344
+
+central-80% coverage and mean interval width by fold
+         model            fold1            fold2            fold3            fold4            fold5
+  gbm_quantile       0.787/350b       0.786/294b       0.770/303b       0.773/394b       0.777/404b
+        static       0.849/427b       0.882/419b       0.870/415b       0.803/408b       0.779/403b
+
+------------------------------------------------------------------------------------------------
+section 16 - probability validation, P(return > cost), pooled
+------------------------------------------------------------------------------------------------
+               model        n    base  mean_p     brier   logloss      ECE
+      gbm_classifier   109240  0.4623  0.4598   0.24718   0.68753  0.01591
+  gbm_from_quantiles   109240  0.4623  0.4576   0.24735   0.68791  0.01669
+              static   109240  0.4623  0.4640   0.24859   0.69033  0.01254
+
+calibration of the classifier (PLAN.md section 16 buckets, extended below 0.50)
+        bucket        n  mean_pred   actual      gap
+     0.00-0.30      482     0.2761   0.4149  +0.1389
+     0.30-0.40    17256     0.3715   0.4032  +0.0316
+     0.40-0.45    31772     0.4267   0.4380  +0.0112
+     0.45-0.50    32202     0.4735   0.4713  -0.0023
+     0.50-0.55    18893     0.5219   0.5028  -0.0191
+     0.55-0.60     6957     0.5696   0.5377  -0.0319
+     0.60-0.65     1441     0.6175   0.5940  -0.0234
+     0.65-0.70      219     0.6674   0.6347  -0.0327
+     0.70-0.80       18          -        -        -
+     0.80-1.00        0          -        -        -
+
+cost threshold = 0.0011 log-return units.
+A static model matching the conditional one on a metric means that metric carries
+no evidence of conditional skill.
